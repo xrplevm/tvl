@@ -41,7 +41,10 @@ export async function loadRows(
       const raw = a.address ? await peersystSupply(a.address) : "0";
       const usd = await getPrice(a.symbol);
       const q = Number(raw) / 10 ** a.decimals;
-      if (a.symbol === "WETH" || a.symbol === "WBTC" || a.symbol === "ATOM") {
+      // Per-asset supply detail can be overwhelming in normal operation; gate
+      // the debug output behind an explicit VITE_DEBUG flag.
+      const debug = import.meta.env?.VITE_DEBUG === 'true';
+      if ((a.symbol === "WETH" || a.symbol === "WBTC" || a.symbol === "ATOM") && debug) {
         // eslint-disable-next-line no-console
         console.log(
           `[DEBUG] ${a.symbol} raw:`,

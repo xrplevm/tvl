@@ -1,4 +1,8 @@
-const API_BASE_URL = 'http://localhost:3001/api';
+// Env-configurable base URL for the token backend. In production this is the
+// deployed API domain; the localhost fallback only applies to local development.
+const API_BASE_URL =
+  (import.meta.env?.VITE_APPROVED_TOKENS_API_URL as string | undefined) ??
+  'http://localhost:3001/api';
 
 export interface ApprovedToken {
   id: string;

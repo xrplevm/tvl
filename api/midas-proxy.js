@@ -6,8 +6,14 @@
  */
 
 export default async function handler(req, res) {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Scope CORS to browser builds that consume this endpoint. The TVL frontend
+  // is served from the xrplevm.org domain (and the local dev origin).
+  const allowedOrigins = ['https://xrplevm.org', 'https://www.xrplevm.org', 'http://localhost:3000'];
+  const origin = req.headers.origin;
+  if (origin && allowedOrigins.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+    res.setHeader('Vary', 'Origin');
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -28,7 +34,11 @@ export default async function handler(req, res) {
     // Fetch from Midas API
     const midasUrl = `https://api-prod.midas.app/api/data/mxrp/price?timestampFrom=${thirtyDaysAgo}&timestampTo=${now}&environment=mainnet`;
     
-    console.log('[midas-proxy] Fetching from:', midasUrl);
+    if (process.env.MIDAS_DEBUG === 'true') {
+      console.log('[midas-proxy] Fetching from:', midasUrl);
+    } else {
+      console.log('[midas-proxy] Fetching mXRP price data');
+    }
     
     const response = await fetch(midasUrl, {
       headers: {
@@ -42,7 +52,6 @@ export default async function handler(req, res) {
       return res.status(response.status).json({ 
         error: 'Midas API error',
         status: response.status,
-        statusText: response.statusText 
       });
     }
 
@@ -50,7 +59,7 @@ export default async function handler(req, res) {
     
     // Validate response structure
     if (!Array.isArray(data) || data.length === 0) {
-      console.error('[midas-proxy] Invalid response format:', data);
+      console.error('[midas-proxy] Invalid response format from Midas API');
       return res.status(500).json({ error: 'Invalid response format from Midas API' });
     }
 
@@ -58,11 +67,11 @@ export default async function handler(req, res) {
     const latestData = data[data.length - 1];
     
     if (!latestData || typeof latestData.price !== 'number') {
-      console.error('[midas-proxy] Invalid price data:', latestData);
+      console.error('[midas-proxy] Invalid price data received');
       return res.status(500).json({ error: 'Invalid price data from Midas API' });
     }
 
-    console.log('[midas-proxy] Success! Latest ratio:', latestData.price);
+    console.log('[midas-proxy] Success! Latest ratio received');
 
     // Return the ratio with cache headers (5 minutes)
     res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=600');
@@ -76,9 +85,9 @@ export default async function handler(req, res) {
 
   } catch (error) {
     console.error('[midas-proxy] Error:', error);
+    // Avoid leaking upstream error details (URLs, status text) to the client.
     return res.status(500).json({ 
       error: 'Failed to fetch mXRP ratio',
-      message: error.message 
     });
   }
 }
