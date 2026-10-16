@@ -5,7 +5,6 @@ import { Table } from "./Table";
 import { getSwapUrl } from "../utils/getSwapUrl";
 import type { Row } from "../types";
 import { useMemeTokens } from "../hooks/useMemeTokens";
-import { useNFTCollections } from "../hooks/useNFTCollections";
 
 function Dashboard() {
   const { rows, loading } = useRows();
@@ -19,7 +18,7 @@ function Dashboard() {
   );
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Persist showMemes and showNFTs in localStorage
+  // Persist showMemes in localStorage
   function getPersistedBool(key: string, defaultValue = false) {
     if (typeof window === 'undefined') return defaultValue;
     const v = localStorage.getItem(key);
@@ -27,17 +26,11 @@ function Dashboard() {
   }
   const [showMemes, setShowMemes] = useState(() => getPersistedBool('showMemes', false));
   const { memes, loading: memesLoading } = useMemeTokens(showMemes);
-  const [showNFTs, setShowNFTs] = useState(() => getPersistedBool('showNFTs', false));
-  const { nfts, loading: nftsLoading } = useNFTCollections(showNFTs);
 
   // Sync to localStorage on change
   function handleSetShowMemes(val: boolean) {
     setShowMemes(val);
     if (typeof window !== 'undefined') localStorage.setItem('showMemes', val ? 'true' : 'false');
-  }
-  function handleSetShowNFTs(val: boolean) {
-    setShowNFTs(val);
-    if (typeof window !== 'undefined') localStorage.setItem('showNFTs', val ? 'true' : 'false');
   }
 
   const list = useMemo(
@@ -92,37 +85,16 @@ function Dashboard() {
       const existingKeys = new Set(base.map((r) => r.key));
       base = [...base, ...memeRows.filter((r) => !existingKeys.has(r.key))];
     }
-    // Merge NFT collections into the list if showNFTs is true
-    if (showNFTs && nfts.length > 0) {
-      const nftRows: Row[] = nfts.map((n) => ({
-        key: n.address,
-        symbol: n.symbol,
-        name: n.name,
-        logo: n.logo,
-        chainLogo: "", // No chain logo for NFTs
-        quantity: n.totalSupply,
-        decimals: 0,
-        cg: "",
-        binance: "",
-        source: "XRPL EVM" as any,
-        dest: "XRPL EVM" as any,
-        priceUsd: n.price,
-        valueUsd: n.valueUsd,
-      }));
-      const existingKeys = new Set(base.map((r) => r.key));
-      base = [...base, ...nftRows.filter((r) => !existingKeys.has(r.key))];
-    }
     // Sort by TVL descending after merging
     return base.sort((a, b) => (b.valueUsd || 0) - (a.valueUsd || 0));
-  }, [list, showMemes, memes, showNFTs, nfts]);
+  }, [list, showMemes, memes]);
 
   // Build filter options including memes if present
   const allSources = useMemo(() => {
     const baseSources = new Set(rows.map((r) => r.source));
     if (showMemes && memes.length > 0) baseSources.add("Memes" as any);
-    if (showNFTs && nfts.length > 0) baseSources.add("NFTs" as any);
     return ["all", ...Array.from(baseSources)];
-  }, [rows, showMemes, memes, showNFTs, nfts]);
+  }, [rows, showMemes, memes]);
   const allDests = useMemo(() => {
     const baseDests = new Set(rows.map((r) => r.dest));
     if (showMemes && memes.length > 0) baseDests.add("-" as any);
@@ -132,10 +104,8 @@ function Dashboard() {
     const baseSymbols = new Set(rows.map((r) => r.symbol));
     if (showMemes && memes.length > 0)
       memes.forEach((m) => baseSymbols.add(m.symbol));
-    if (showNFTs && nfts.length > 0)
-      nfts.forEach((n) => baseSymbols.add(n.symbol));
     return ["all", ...Array.from(baseSymbols)];
-  }, [rows, showMemes, memes, showNFTs, nfts]);
+  }, [rows, showMemes, memes]);
 
   // Use filter values to filter combinedList
   const filteredList = useMemo(
@@ -227,7 +197,7 @@ function Dashboard() {
           opts={allSymbols}
         />
       </div>
-      {/* memes & nfts checkboxes */}
+      {/* memes checkbox */}
       <div className="flex items-center gap-4 mb-4">
         <label className="flex items-center gap-2 cursor-pointer select-none px-4 py-2 rounded-lg bg-darkPurple/80 hover:bg-darkPurple/60 transition-colors border border-lightPurple/30 shadow-sm relative">
           <span className="relative w-5 h-5 flex items-center justify-center">
@@ -246,34 +216,14 @@ function Dashboard() {
           </span>
           <span className="text-lightPurple font-semibold tracking-wide pl-2">Memes</span>
         </label>
-        <label className="flex items-center gap-2 cursor-pointer select-none px-4 py-2 rounded-lg bg-darkPurple/80 hover:bg-darkPurple/60 transition-colors border border-lightPurple/30 shadow-sm relative">
-          <span className="relative w-5 h-5 flex items-center justify-center">
-            <input
-              type="checkbox"
-              checked={showNFTs}
-              onChange={(e) => handleSetShowNFTs(e.target.checked)}
-              className="appearance-none w-5 h-5 rounded border-2 border-lightPurple bg-black checked:bg-gradient-to-br checked:from-green checked:to-lightPurple focus:ring-0 focus:outline-none transition-all duration-200 peer"
-            />
-            {/* Custom checkmark icon absolutely centered in the box */}
-            {showNFTs && (
-              <svg className="absolute left-0 top-0 w-5 h-5 pointer-events-none" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M4 9.5L8 13L14 6" stroke="#32E685" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            )}
-          </span>
-          <span className="text-lightPurple font-semibold tracking-wide pl-2">NFTs</span>
-        </label>
         {(showMemes && memesLoading) && (
           <span className="text-xs text-gray-400">Loading memes...</span>
-        )}
-        {(showNFTs && nftsLoading) && (
-          <span className="text-xs text-gray-400">Loading NFTs...</span>
         )}
       </div>
       <div style={{ overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
         <Table
           rows={filteredList}
-          loading={loading || memesLoading || nftsLoading}
+          loading={loading || memesLoading}
           onRowClick={handleRowClick}
           highlightedKey={highlightedKey}
         />
